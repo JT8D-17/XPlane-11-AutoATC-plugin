@@ -297,13 +297,14 @@ void Aircraft::PrepareAircraftData()
 		data_mutex.unlock();
 		return;
 	}
-	
+	soundSystem.showActive();
 	if(inLoading==0&&toLoadAirframe){
 		visible=false;
 		toLoadAirframe=false;
 		char* af=jvmO->getModel(airFrameIndex);
-		char debugStr[2048];
+		
 #if defined(XP11)	
+		
 		if(g_instance[0]!=NULL)
 	    {
 #if defined(DEBUG_STRINGS)
@@ -527,7 +528,7 @@ void Aircraft::PrepareAircraftData()
 	double requestedAGL=1000.0;
 	double targetAGL=1000.0;
 	//XPLMProbeTerrainXYZ(ground_probe,data.x,data.y,data.z,&outInfo);
-	double thisRequestedAGL=data.y-outInfo.locationY;
+	double thisRequestedAGL=1000;
 	if(!data.inTransit){
 	 	XPLMProbeTerrainXYZ(ground_probe,data.x,data.y,data.z,&outInfo);
 		requestedAGL=data.y-outInfo.locationY;
@@ -773,7 +774,7 @@ void Aircraft::SetAircraftData(void)
     {
 		float thisdamage=0.0;
 		if(damage!=NULL&&i==0){
-			float donedamage;
+			//float donedamage;
 			
 			/*XPLMGetDatavf(damage,&donedamage,id,1);
 			if(donedamage>20)
@@ -964,7 +965,7 @@ std::thread m_thread(&do_model);
 std::thread m_simthread(&do_simulation);
 void initPlanes(){
 
-	soundSystem.showActive();
+	
 
     /*gPlaneX = XPLMFindDataRef("sim/flightmodel/position/local_x");
 	gPlaneY = XPLMFindDataRef("sim/flightmodel/position/local_y");
@@ -1057,7 +1058,7 @@ void aircraftLoop()
 		aircraft[i].SetAircraftData();
 		//g_ac_mutex[i].unlock();
 	}
-	char message[256];
+	//char message[256];
 	if(sound_on==NULL){
 		sound_on = XPLMFindDataRef("sim/operation/sound/sound_on");
 		sound_paused = XPLMFindDataRef("sim/time/paused");

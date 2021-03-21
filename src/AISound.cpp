@@ -68,9 +68,10 @@ char * WaveFile::chunk_end(char * chunk_start, int swapped)
 	return chunk_start + (swapped ? SWAP_32(h->size) : h->size);
 }
 int sound_id=0;
-ALuint buffers[5];
+ALuint buffers[6];
 ALuint snd_srcs[8];
-ALuint WaveFile::load_wave(const char * file_name)
+
+ALuint WaveFile::load_wave(const char * file_name,int thisID)
 {
 	// First: we open the file and copy it into a single large memory buffer for processing.
 
@@ -203,16 +204,17 @@ ALuint WaveFile::load_wave(const char * file_name)
 	
 	//ALuint buf_id = buffers[sound_id];
 	//CHECK_ERR();
-	if(sound_id==0)
-		alGenBuffers(4, buffers);
+	//if(thisID==0)
+		
 	//CHECK_ERR();
-	if(buffers[sound_id] == 0){
+	if(buffers[thisID] == 0){
 			XPLMDebugString("Could not generate buffer id.\n"); 
 			free(mem);
+			return -1;
 		}
 			//("Could not generate buffer id.\n");
 	
-	alBufferData(buffers[sound_id], fmt->bits_per_sample == 16 ? 
+	alBufferData(buffers[thisID], fmt->bits_per_sample == 16 ? 
 							(fmt->num_channels == 2 ? AL_FORMAT_STEREO16 : AL_FORMAT_MONO16) :
 							(fmt->num_channels == 2 ? AL_FORMAT_STEREO8 : AL_FORMAT_MONO8),
 					data, data_bytes, fmt->sample_rate);
@@ -221,53 +223,59 @@ ALuint WaveFile::load_wave(const char * file_name)
 	char error[2056];
 	sprintf(error,"AutoATC: WAVE file loaded:%s\n",file_name);
 	XPLMDebugString(error);	
-	return buffers[sound_id];
+	return buffers[thisID];
 }
 //WaveFile buffers[2];
 WaveFile wav;
-
-AircraftSound::AircraftSound()
+void AircraftSound::LoadSound()
 {
-   // WaveFile wav;
-    ALfloat	zero[3] = { 0 } ;
+	ALfloat	zero[3] = { 0 } ;
 
 	char xp_soundpath[512];
 	XPLMGetSystemPath(xp_soundpath);
 	CHECK_ERR();
 	float looping=1.0f;
 	char path[1024];
-	if(sound_id==0){
-		alGenSources(6,snd_srcs);
+	if(local_snd_id==0){
 		looping=0.0f;
-		snd_src=snd_srcs[sound_id];
+		snd_src=snd_srcs[local_snd_id];
 		sprintf (path, "%s",  "Resources/plugins/AutoATC/audio/screech.wav");
-		snd_buffer=wav.load_wave(path);
-		sound_id++;
-	}
-	else if(sound_id==1){
+		snd_buffer=wav.load_wave(path,local_snd_id);
 		
-		snd_src=snd_srcs[sound_id];
+	}
+	else if(local_snd_id==1){
+		
+		snd_src=snd_srcs[local_snd_id];
 		sprintf (path, "%s",  "Resources/plugins/AutoATC/audio/prop.wav");
-		snd_buffer=wav.load_wave(path);
-		sound_id++;
+		snd_buffer=wav.load_wave(path,local_snd_id);
+		
 	}
-	else if(sound_id==2){
-		snd_src=snd_srcs[sound_id];
+	else if(local_snd_id==2){
+		snd_src=snd_srcs[local_snd_id];
 		sprintf (path, "%s",  "Resources/plugins/AutoATC/audio/heli2.wav");//heli
-		snd_buffer=wav.load_wave(path);
-		sound_id++;
+		snd_buffer=wav.load_wave(path,local_snd_id);
+		
 	}
-	else if(sound_id==3){
-		snd_src=snd_srcs[sound_id];
+	else if(local_snd_id==3){
+		snd_src=snd_srcs[local_snd_id];
+		sprintf (path, "%s",  "Resources/plugins/AutoATC/audio/tprop.wav");
+		snd_buffer=wav.load_wave(path,local_snd_id);
+		
+	}
+	else if(local_snd_id==4){
+		snd_src=snd_srcs[local_snd_id];
 		sprintf (path, "%s",  "Resources/plugins/AutoATC/audio/jet.wav");
-		snd_buffer=wav.load_wave(path);
-		sound_id++;
+		snd_buffer=wav.load_wave(path,local_snd_id);
+		
 	}
-	
 	else{
-		snd_src=snd_srcs[sound_id];
-		snd_buffer=buffers[3];
-		sound_id++;
+		if(!snd_srcs[local_snd_id]){
+			sprintf (path, "%s",  "Resources/plugins/AutoATC/audio/jet.wav");
+			snd_buffer=wav.load_wave(path,4);
+		}
+		snd_src=snd_srcs[local_snd_id];
+		snd_buffer=buffers[4];
+		
 	}
 	
 	CHECK_ERR();
@@ -283,10 +291,18 @@ AircraftSound::AircraftSound()
     //zero[0]=2.0f;
     zero[2]=5.0f;
     alSource3f(snd_src,AL_POSITION, zero[0],zero[1],zero[2]);
-	printf("AutoATC:load sound %d\n",sound_id);
+	printf("AutoATC:load sound %d\n",local_snd_id);
 	CHECK_ERR();
 }
+AircraftSound::AircraftSound()
+{
+   // WaveFile wav;
+    local_snd_id=sound_id;
+	sound_id++;
+}
 void AircraftSound::play(){
+	if(!snd_src)
+		LoadSound();
     if(snd_src)
 		{
             CHECK_ERR();
@@ -360,19 +376,23 @@ AircraftSounds::AircraftSounds(Aircraft *aircraft)
 {
     aircrafts=aircraft;
 	
-    start();
-    ALfloat	zero[3] = { 0,0,0 } ;
-    ALfloat	listenerOri[]={0.0,0.0,-1.0, 0.0,1.0,0.0};	// Listener facing into the screen
-	
-    alListenerfv(AL_POSITION,zero);
-    alListenerfv(AL_VELOCITY,zero);
-    alListenerfv(AL_ORIENTATION,listenerOri); 	// Orientation ...
+    //start();
+    
 }
 void AircraftSounds::showActive(){
-    if(!live)
+    if(!live){
         start();
-    XPLMDebugString("AutoATC:OpenAL device active.\n");
-    
+
+		alGenSources(6,snd_srcs);
+		alGenBuffers(5, buffers);
+		ALfloat	zero[3] = { 0,0,0 } ;
+    	ALfloat	listenerOri[]={0.0,0.0,-1.0, 0.0,1.0,0.0};	// Listener facing into the screen
+	
+    	alListenerfv(AL_POSITION,zero);
+    	alListenerfv(AL_VELOCITY,zero);
+    	alListenerfv(AL_ORIENTATION,listenerOri); 	// Orientation ...
+    	XPLMDebugString("AutoATC:OpenAL device active.\n");
+	}
     //snd.play();
 
 }
@@ -422,7 +442,7 @@ void AircraftSounds::update(float latest_sound_vol){
 #endif		
 		sound_vol=latest_sound_vol;
 	}
-	for(int i=0;i<3;i++){
+	for(int i=0;i<2;i++){
     	jetsnd[i].dist=3000.0f;
     	jetsnd[i].pos=v(0,0,0);
    		jetsnd[i].velocity=v(0,0,0);
@@ -430,6 +450,9 @@ void AircraftSounds::update(float latest_sound_vol){
     propsnd.dist=3000.0f;
     propsnd.pos=v(0,0,0);
     propsnd.velocity=v(0,0,0);
+	tpropsnd.dist=3000.0f;
+    tpropsnd.pos=v(0,0,0);
+    tpropsnd.velocity=v(0,0,0);
 	helisnd.dist=3000.0f;
     helisnd.pos=v(0,0,0);
     helisnd.velocity=v(0,0,0);
@@ -444,7 +467,7 @@ void AircraftSounds::update(float latest_sound_vol){
 		if(aircrafts[i].data.engineoff)
 			dist=6000.0f;
         if(soundIndex==0){
-			for(int n=0;n<3;n++){
+			for(int n=0;n<2;n++){
 				if(dist<jetsnd[n].dist){
 					jetsnd[n].aircraftid=i;
            			jetsnd[n].pos=diff;
@@ -468,14 +491,22 @@ void AircraftSounds::update(float latest_sound_vol){
             helisnd.velocity= aircrafts[i].getVelocity();
             
         }
+		else if(soundIndex==3&&dist<tpropsnd.dist){
+			tpropsnd.aircraftid=i;
+            tpropsnd.pos=diff;
+            tpropsnd.dist=dist;
+            tpropsnd.velocity= aircrafts[i].getVelocity();
+            
+        }
         
     }
-	char debugStr[512];
-	for(int n=0;n<3;n++){
+	//
+	for(int n=0;n<2;n++){
     if(jetsnd[n].dist<3000.0f&&aircrafts[jetsnd[n].aircraftid].airFrameIndex>=0){
         //float	*apos = aircrafts[closest].getSndSrc();
       if(jetsnd[n].lastAFID!=jetsnd[n].aircraftid){
 #if defined(DEBUG_STRINGS)
+		  char debugStr[512];
 		   sprintf(debugStr,"got plane snd1 af=%d index=%d %f %f %f %f %f %f %d %d\n",jetsnd[n].aircraftid,aircrafts[jetsnd[n].aircraftid].airFrameIndex,jetsnd[n].pos.x,jetsnd[n].pos.y,jetsnd[n].pos.z, jetsnd[n].velocity.x, jetsnd[n].velocity.y, jetsnd[n].velocity.z,jetsnd[n].snd_src,jetsnd[n].snd_buffer);
 		  	XPLMDebugString(debugStr);
 #endif
@@ -541,6 +572,41 @@ void AircraftSounds::update(float latest_sound_vol){
     }
     else if(!propsnd.paused){
             propsnd.pause();
+            
+    }
+	if(tpropsnd.dist<3000.0f&&aircrafts[tpropsnd.aircraftid].airFrameIndex>=0){
+        //float	*apos = aircrafts[closest].getSndSrc();
+       // printf("got plane %f %f %f %f %f %f\n",closest.x,closest.y,closest.z,velocity.x,velocity.y,velocity.z);
+       if(tpropsnd.lastAFID!=tpropsnd.aircraftid){
+#if defined(DEBUG_STRINGS)
+		   sprintf(debugStr,"got plane snd2 af=%d index=%d %f %f %f %f %f %f %d %d\n",tpropsnd.aircraftid,aircrafts[tpropsnd.aircraftid].airFrameIndex,tpropsnd.pos.x,tpropsnd.pos.y,tpropsnd.pos.z, tpropsnd.velocity.x, tpropsnd.velocity.y, tpropsnd.velocity.z,tpropsnd.snd_src,tpropsnd.snd_buffer);
+		   XPLMDebugString(debugStr);
+#endif
+		   tpropsnd.lastAFID=tpropsnd.aircraftid;
+	   }
+        ALfloat	pos[3] = { tpropsnd.pos.x/50.0f,tpropsnd.pos.y/50.0f,tpropsnd.pos.z/50.0f } ;
+        ALfloat	vel[3] = { tpropsnd.velocity.x/50.0f,tpropsnd.velocity.z/50.0f,tpropsnd.velocity.y/50.0f } ;
+
+       // pos[2]=9.0f;
+       if(!tpropsnd.playing){
+		   //printf("got plane 2 %f %f %f %f %f %f %d %d\n",snd2.pos.x,snd2.pos.y,snd2.pos.z, snd2.velocity.x, snd2.velocity.y, snd2.velocity.z,snd2.snd_src,snd2.snd_buffer);
+                tpropsnd.playing=true;
+                tpropsnd.play();
+                tpropsnd.paused=false;
+            }
+            if(tpropsnd.velocity/tpropsnd.velocity>0.1f){
+                tpropsnd.setPitch(1.0f);
+
+            }
+            else
+                tpropsnd.setPitch(0.7f);
+         tpropsnd.setPosition(pos);
+        tpropsnd.setVelocity(vel);
+        tpropsnd.setVolume(sound_vol);
+       // printf("set listener %f %f %f\n",apos[0],apos[1],apos[2]);
+    }
+    else if(!tpropsnd.paused){
+            tpropsnd.pause();
             
     }
    if(helisnd.dist<3000.0f&&aircrafts[helisnd.aircraftid].airFrameIndex>=0){
@@ -639,11 +705,13 @@ void AircraftSounds::start()
 	} 
 	else
 	{
-		printf("AutoATC:0x%08x: I found someone else's openAL context 0x%08x.\n", old_ctx);
+		printf("AutoATC: I found someone else's openAL context.\n");
 		old_ctx=old_ctx;
 	}
+	
 	live=true;
 	XPLMDebugString("AutoATC:Using OpenAL device.\n");
+	
     //buffers[0].load_wave("/media/storage2/X-Plane 11/X-Plane 11_11.30/Resources/plugins/AutoATC/sound4.wav");
 	/*CHECK_ERR();
 	alGenBuffers(3, buffers);
@@ -659,6 +727,7 @@ void AircraftSounds::stop()
 	landsnd.stop();
     propsnd.stop();
     helisnd.stop();
+	tpropsnd.stop();
 	for(int i=0;i<3;i++)
     	jetsnd[i].stop();
 	if(my_ctx != NULL)
@@ -667,6 +736,7 @@ void AircraftSounds::stop()
 		
 		alcCloseDevice(my_dev);
 	}	
+	live=false;
     //snd1.stop();
     //snd2.stop();
 }

@@ -36,6 +36,7 @@ class AircraftSound
     double			targetPitch		= 1.0f;	
     ALuint			snd_src		=0;				// Sample source and buffer - this is one "sound" we play.
     ALuint	snd_buffer	=0;
+    int local_snd_id;
    /* float		x;
 	float		y;
 	float		z;*/
@@ -48,6 +49,7 @@ class AircraftSound
     bool paused;
     //v position(0.0,0.0,0.0);
     AircraftSound(void);
+    void LoadSound(void);
     void play(void);
     void pause(void);
     void stop();
@@ -73,7 +75,9 @@ class AircraftSounds
     AircraftSound landsnd;
     AircraftSound propsnd;
     AircraftSound helisnd;
-    AircraftSound jetsnd[3];
+    AircraftSound tpropsnd;
+    AircraftSound jetsnd[2];
+
    // AircraftSound landsnd;
     Aircraft *aircrafts;
     
@@ -119,11 +123,14 @@ struct format_info {
 };
 
 #define CHECK_ERR() __CHECK_ERR(__FILE__,__LINE__)
-static void __CHECK_ERR(const char * f, int l)
+static bool __CHECK_ERR(const char * f, int l)
 {
 	ALuint e = alGetError();
-	if (e != AL_NO_ERROR)
+	if (e != AL_NO_ERROR){
 		printf("ERROR: %d (%s:%d\n", e, f, l);
+        return true;
+    }
+    return false;
 }
 class WaveFile
 {
@@ -133,5 +140,5 @@ class WaveFile
     public:
     
     WaveFile(void);
-    ALuint load_wave(const char * file_name);
+    ALuint load_wave(const char * file_name,int thisID);
 };
